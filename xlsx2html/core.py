@@ -144,17 +144,19 @@ def image_to_data(image: Image) -> dict:
     return data
 
 
-def images_to_data(ws: Worksheet):
+def images_to_data(ws: Worksheet, custom_image_to_data=None):
     images: List[Image] = ws._images
 
     images_data = defaultdict(list)
     for _i in images:
         _id = image_to_data(_i)
+        if custom_image_to_data:
+            _id = custom_image_to_data(_i, _id)
         images_data[(_id["col"], _id["row"])].append(_id)
     return images_data
 
 
-def worksheet_to_data(ws, locale=None, fs=None, default_cell_border="none"):
+def worksheet_to_data(ws, locale=None, fs=None, default_cell_border="none", custom_image_to_data=None):
     merged_cell_map = {}
     if OPENPYXL_24:
         merged_cell_ranges = ws.merged_cell_ranges
@@ -252,12 +254,12 @@ def worksheet_to_data(ws, locale=None, fs=None, default_cell_border="none"):
             )
             if max_col_number < 0:
                 break
-    return {"rows": data_list, "cols": col_list, "images": images_to_data(ws)}
+    return {"rows": data_list, "cols": col_list, "images": images_to_data(ws, custom_image_to_data)}
 
 
 def render_table(data, append_headers, append_lineno):
     html = [
-        "<table  "
+        "<table "
         'style="border-collapse: collapse" '
         'border="0" '
         'cellspacing="0" '
@@ -315,20 +317,20 @@ def render_table(data, append_headers, append_lineno):
     return "\n".join(html)
 
 
-def render_data_to_html(data, append_headers, append_lineno):
+def render_data_to_html(data, append_headers, append_lineno, html_lang, document_title):
     html = """
     <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <title>Title</title>
-    </head>
-    <body>
-        %s
-    </body>
+    <html lang="%(html_lang)s">
+        <head>
+            <meta charset="UTF-8">
+            <title>%(document_title)s</title>
+        </head>
+        <body>
+            %(table)s
+        </body>
     </html>
     """
-    return html % render_table(data, append_headers, append_lineno)
+    return html % {"html_lang": html_lang, "document_title": document_title, "table": render_table(data, append_headers, append_lineno)}
 
 
 def get_sheet(wb, sheet):
@@ -350,6 +352,9 @@ def xlsx2html(
     append_headers=(lambda dumb1, dumb2: True),
     append_lineno=(lambda dumb1, dumb2: True),
     default_cell_border="none",
+    custom_image_to_data=(lambda image, initial_data: initial_data),
+    document_title="Title",
+    html_lang="en"
 ):
     wb = openpyxl.load_workbook(filepath, data_only=True)
     ws = get_sheet(wb, sheet)
@@ -360,9 +365,13 @@ def xlsx2html(
         fs = get_sheet(fb, sheet)
 
     data = worksheet_to_data(
-        ws, locale=locale, fs=fs, default_cell_border=default_cell_border
+        ws,
+        locale=locale,
+        fs=fs,
+        default_cell_border=default_cell_border,
+        custom_image_to_data=custom_image_to_data
     )
-    html = render_data_to_html(data, append_headers, append_lineno)
+    html = render_data_to_html(data, append_headers, append_lineno, html_lang=html_lang, document_title=document_title,)
 
     if not output:
         output = io.StringIO()
