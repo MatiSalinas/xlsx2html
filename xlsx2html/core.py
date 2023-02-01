@@ -156,6 +156,48 @@ def images_to_data(ws: Worksheet, custom_image_to_data=None):
     return images_data
 
 
+def get_dimensions(ws: Worksheet) -> tuple:
+    abc = [chr(i) for i in range(ord('a'), ord('z') + 1)]
+
+    min_row = None
+    min_col = None
+    max_row = None
+    max_col = None
+
+    column = []
+    column_aux = []
+    row = []
+    i: str
+    if ws._print_area is not None:
+        for area in ws._print_area:
+            j = area.split(':')
+            w = []
+            for a in j:
+                for x in a.split('$'):
+                    w.append(x)
+            for i in w:
+                if i.isdigit():
+                    row.append(i)
+                elif i.isalpha():
+                    column.append(i)
+        for r in column:
+            f = 0
+            for a in abc:
+                f += 1
+                if r == a.upper():
+                    column_aux.append(f)
+        if len(row) >= 1:
+            min_row = int(row[0])
+        if len(column_aux) >= 1:
+            min_col = column_aux[0]
+        if len(row) >= 2:
+            max_row = int(row[1])
+        if len(column_aux) >= 2:
+            max_col = column_aux[1]
+
+    return (min_row, max_row, min_col, max_col)
+
+
 def worksheet_to_data(ws, locale=None, fs=None, default_cell_border="none", custom_image_to_data=None):
     merged_cell_map = {}
     if OPENPYXL_24:
@@ -191,7 +233,8 @@ def worksheet_to_data(ws, locale=None, fs=None, default_cell_border="none", cust
     max_col_number = 0
 
     data_list = []
-    for row_i, row in enumerate(ws.iter_rows()):
+    min_row, max_row, min_col, max_col = get_dimensions(ws=ws)
+    for row_i, row in enumerate(ws.iter_rows(min_row=min_row, max_row=max_row, min_col=min_col, max_col=max_col)):
         data_row = []
         data_list.append(data_row)
         for col_i, cell in enumerate(row):
@@ -212,11 +255,15 @@ def worksheet_to_data(ws, locale=None, fs=None, default_cell_border="none", cust
             if fs:
                 f_cell = fs[cell.coordinate]
 
+            formatted_value = format_cell(cell, locale=locale, f_cell=f_cell)
+            if isinstance(formatted_value, str):
+                formatted_value = '<br />'.join(formatted_value.split('\n'))
+
             cell_data = {
                 "column": cell.column,
                 "row": cell.row,
                 "value": cell.value,
-                "formatted_value": format_cell(cell, locale=locale, f_cell=f_cell),
+                "formatted_value": formatted_value,
                 "attrs": {"id": get_cell_id(cell)},
                 "style": {"height": f"{height}pt"},
             }
@@ -235,6 +282,7 @@ def worksheet_to_data(ws, locale=None, fs=None, default_cell_border="none", cust
         ws.column_dimensions.items(), key=lambda d: column_index_from_string(d[0])
     )
 
+    total_width = 0
     for col_i, col_dim in column_dimensions:
         if not all([col_dim.min, col_dim.max]):
             continue
@@ -242,6 +290,7 @@ def worksheet_to_data(ws, locale=None, fs=None, default_cell_border="none", cust
         if col_dim.customWidth:
             width = round(col_dim.width / 10.0, 2)
         col_width = 96 * width
+        total_width += col_width
 
         for _ in six.moves.range((col_dim.max - col_dim.min) + 1):
             max_col_number -= 1
@@ -254,6 +303,11 @@ def worksheet_to_data(ws, locale=None, fs=None, default_cell_border="none", cust
             )
             if max_col_number < 0:
                 break
+
+    for col in col_list:
+        col['style']['width'] = '{:2f}%'.format(
+            float(col['style']['width'][:-2]) / total_width * 100)
+
     return {"rows": data_list, "cols": col_list, "images": images_to_data(ws, custom_image_to_data)}
 
 
@@ -371,7 +425,8 @@ def xlsx2html(
         default_cell_border=default_cell_border,
         custom_image_to_data=custom_image_to_data
     )
-    html = render_data_to_html(data, append_headers, append_lineno, html_lang=html_lang, document_title=document_title,)
+    html = render_data_to_html(data, append_headers, append_lineno,
+                               html_lang=html_lang, document_title=document_title,)
 
     if not output:
         output = io.StringIO()
