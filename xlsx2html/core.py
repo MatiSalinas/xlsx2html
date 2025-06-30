@@ -196,21 +196,51 @@ def get_dimensions(ws: Worksheet) -> tuple:
             max_col = column_aux[1]
 
     # Siempre considerar imágenes para obtener las dimensiones reales
+    debug_info = []  # Para capturar info de debug
+    
     if hasattr(ws, '_images') and ws._images:
-        for image in ws._images:
+        debug_info.append(f"=== DEBUG: Encontradas {len(ws._images)} imágenes ===")
+        
+        for i, image in enumerate(ws._images):
+            debug_info.append(f"\nImagen {i+1}:")
+            debug_info.append(f"  Tiene anchor: {hasattr(image, 'anchor')}")
+            
             if hasattr(image, 'anchor'):
-                img_row = None
-                img_col = None
+                debug_info.append(f"  Tipo de anchor: {type(image.anchor)}")
+                debug_info.append(f"  Atributos del anchor: {dir(image.anchor)}")
                 
+                # Debug _from
+                if hasattr(image.anchor, '_from'):
+                    debug_info.append(f"  Tiene _from: {type(image.anchor._from)}")
+                    debug_info.append(f"  Atributos de _from: {dir(image.anchor._from)}")
+                    if hasattr(image.anchor._from, 'row'):
+                        debug_info.append(f"  _from.row: {image.anchor._from.row}")
+                    if hasattr(image.anchor._from, 'col'):
+                        debug_info.append(f"  _from.col: {image.anchor._from.col}")
+                
+                # Debug row/col directo
+                if hasattr(image.anchor, 'row'):
+                    debug_info.append(f"  anchor.row: {image.anchor.row}")
+                if hasattr(image.anchor, 'col'):
+                    debug_info.append(f"  anchor.col: {image.anchor.col}")
+            
+            img_row = None
+            img_col = None
+            
+            if hasattr(image, 'anchor'):
                 # Intentar con OneCellAnchor (_from.row, _from.col)
                 if hasattr(image.anchor, '_from') and hasattr(image.anchor._from, 'row'):
                     img_row = image.anchor._from.row + 1
                     img_col = image.anchor._from.col + 1
+                    debug_info.append(f"  ✅ Detectada con _from: row={img_row}, col={img_col}")
                 
                 # Fallback: intentar con absolute anchor (row, col)
                 elif hasattr(image.anchor, 'row') and hasattr(image.anchor, 'col'):
                     img_row = image.anchor.row + 1
                     img_col = image.anchor.col + 1
+                    debug_info.append(f"  ✅ Detectada con row/col: row={img_row}, col={img_col}")
+                else:
+                    debug_info.append(f"  ❌ NO detectada - no se encontraron coordenadas")
                 
                 # Actualizar dimensiones si se encontró posición válida
                 if img_row is not None and img_col is not None:
@@ -227,7 +257,26 @@ def get_dimensions(ws: Worksheet) -> tuple:
                     if max_row is None or img_max_row > max_row:
                         max_row = img_max_row
                     if max_col is None or img_max_col > max_col:
-                        max_col = img_max_col   
+                        max_col = img_max_col
+        
+        debug_info.append(f"\n=== RESULTADO FINAL ===")
+        debug_info.append(f"min_row: {min_row}, max_row: {max_row}")
+        debug_info.append(f"min_col: {min_col}, max_col: {max_col}")
+        debug_info.append("========================")
+    
+    # En Django, escribe el debug a un archivo temporal
+    import os
+    if debug_info:
+        debug_file = '/tmp/excel_debug.txt'
+        try:
+            with open(debug_file, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(debug_info))
+            # También registra en Django logs si está disponible
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Debug info escrito en: {debug_file}")
+        except Exception:
+            pass  # Silenciar errores de escritura   
 
     return (min_row, max_row, min_col, max_col)
 
