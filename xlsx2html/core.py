@@ -198,30 +198,49 @@ def get_dimensions(ws: Worksheet) -> tuple:
     # Siempre considerar imágenes para obtener las dimensiones reales
     if hasattr(ws, '_images') and ws._images:
         for image in ws._images:
-            if hasattr(image, 'anchor') and hasattr(image.anchor, '_from'):
-                # Posición inicial de la imagen
-                img_from_row = image.anchor._from.row + 1
-                img_from_col = image.anchor._from.col + 1
+            if hasattr(image, 'anchor'):
+                img_from_row = None
+                img_from_col = None
+                img_to_row = None
+                img_to_col = None
                 
-                # Posición final de la imagen (si existe)
-                img_to_row = img_from_row
-                img_to_col = img_from_col
+                # Obtener posición inicial (_from)
+                if hasattr(image.anchor, '_from'):
+                    img_from_row = image.anchor._from.row + 1
+                    img_from_col = image.anchor._from.col + 1
                 
+                # Obtener posición final (_to)
                 if hasattr(image.anchor, '_to'):
                     img_to_row = image.anchor._to.row + 1
                     img_to_col = image.anchor._to.col + 1
+                else:
+                    # Si no hay _to, usar _from + estimación de tamaño
+                    if img_from_row is not None:
+                        img_to_row = img_from_row + 5  # Estimación conservadora
+                        img_to_col = img_from_col + 5
                 
-                # Actualizar dimensiones mínimas
-                if min_row is None or img_from_row < min_row:
-                    min_row = img_from_row
-                if min_col is None or img_from_col < min_col:
-                    min_col = img_from_col
+                # Verificar otros tipos de anchor (oneCellAnchor, absoluteAnchor)
+                if img_from_row is None and hasattr(image.anchor, 'row') and hasattr(image.anchor, 'col'):
+                    img_from_row = image.anchor.row + 1
+                    img_from_col = image.anchor.col + 1
+                    img_to_row = img_from_row + 5
+                    img_to_col = img_from_col + 5
                 
-                # Actualizar dimensiones máximas
-                if max_row is None or img_to_row > max_row:
-                    max_row = img_to_row
-                if max_col is None or img_to_col > max_col:
-                    max_col = img_to_col   
+                # Actualizar dimensiones si se encontraron valores válidos
+                if img_from_row is not None and img_from_col is not None:
+                    # Actualizar dimensiones mínimas
+                    if min_row is None or img_from_row < min_row:
+                        min_row = img_from_row
+                    if min_col is None or img_from_col < min_col:
+                        min_col = img_from_col
+                    
+                    # Actualizar dimensiones máximas
+                    if img_to_row is not None:
+                        if max_row is None or img_to_row > max_row:
+                            max_row = img_to_row
+                    if img_to_col is not None:
+                        if max_col is None or img_to_col > max_col:
+                            max_col = img_to_col   
 
     return (min_row, max_row, min_col, max_col)
 
