@@ -417,20 +417,24 @@ def render_table(data, append_headers, append_lineno):
 
 HTML_TEMPLATE = """
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="{html_lang}">
     <head>
         <meta charset="UTF-8">
-        <title>Title</title>
+        <title>{document_title}</title>
     </head>
     <body>
-        %s
+        {table}
     </body>
     </html>
     """
 
 
-def render_data_to_html(data, append_headers, append_lineno):
-    return HTML_TEMPLATE % render_table(data, append_headers, append_lineno)
+def render_data_to_html(data, append_headers, append_lineno, html_lang="en", document_title="Title"):
+    return HTML_TEMPLATE.format(
+        html_lang=html_lang,
+        document_title=document_title,
+        table=render_table(data, append_headers, append_lineno)
+    )
 
 
 def get_sheet(wb, sheet):
@@ -452,6 +456,8 @@ def xlsx2html(
     append_headers=(lambda dumb1, dumb2: True),
     append_lineno=(lambda dumb1, dumb2: True),
     default_cell_border="none",
+    html_lang="en",
+    document_title="Title"
 ):
     """
 
@@ -496,7 +502,11 @@ def xlsx2html(
         )
         html_tables.append(render_table(data, append_headers, append_lineno))
 
-    html = HTML_TEMPLATE % "\n".join(html_tables)
+    html = HTML_TEMPLATE.format(
+        html_lang=html_lang,
+        document_title=document_title,
+        table="\n".join(html_tables)
+    )
     output.write(html)
     output.flush()
     return output
