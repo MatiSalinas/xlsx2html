@@ -195,6 +195,34 @@ def get_dimensions(ws: Worksheet) -> tuple:
         if len(column_aux) >= 2:
             max_col = column_aux[1]
 
+    # Siempre considerar imágenes para obtener las dimensiones reales
+    if hasattr(ws, '_images') and ws._images:
+        for image in ws._images:
+            if hasattr(image, 'anchor') and hasattr(image.anchor, '_from'):
+                # Posición inicial de la imagen
+                img_from_row = image.anchor._from.row + 1
+                img_from_col = image.anchor._from.col + 1
+                
+                # Posición final de la imagen (si existe)
+                img_to_row = img_from_row
+                img_to_col = img_from_col
+                
+                if hasattr(image.anchor, '_to'):
+                    img_to_row = image.anchor._to.row + 1
+                    img_to_col = image.anchor._to.col + 1
+                
+                # Actualizar dimensiones mínimas
+                if min_row is None or img_from_row < min_row:
+                    min_row = img_from_row
+                if min_col is None or img_from_col < min_col:
+                    min_col = img_from_col
+                
+                # Actualizar dimensiones máximas
+                if max_row is None or img_to_row > max_row:
+                    max_row = img_to_row
+                if max_col is None or img_to_col > max_col:
+                    max_col = img_to_col   
+
     return (min_row, max_row, min_col, max_col)
 
 
